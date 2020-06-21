@@ -9,9 +9,9 @@ fn main() -> io::Result<()> {
 
     let mut counter: usize = 0;
     const MPID: u16 = 2120;
-    const URI: &str = "http://a2p-http-auto-vm-mf-a2p.staging.funbox.io/api/v1/match_template";
+    const URI: &str = "GET FROM CFG";
     const BATCHSIZE: usize = 1000;
-    const DEBUGITER: usize = 1000;
+    const DEBUGITERATOR: usize = 1000;
 
     let now = Instant::now();
 
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
     let mut csv_writer = csv::Writer::from_path(outfile_path)?;
 
     for chunk in csv_reader.records().chunks(BATCHSIZE).into_iter() {
-        if counter > DEBUGITER {
+        if counter > DEBUGITERATOR {
             break;
         }
         counter += 1;
@@ -36,7 +36,7 @@ fn main() -> io::Result<()> {
         for item in chunk {
             let record = item?;
             let msg = ShortMessage {
-                sender: record.get(2).unwrap().to_string(),
+                sender: record.get(2).unwrap().to_string(), // TODO: make field positions configurable
                 text: record.get(8).unwrap().to_string(),
                 kind: SMKind::Advertisement,
                 template_id: None,
