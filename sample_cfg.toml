@@ -1,0 +1,8 @@
+infile_path = "sample.csv"
+outfile_path = "out.csv"
+
+
+MPID = 2120
+URI = "http://example.com/api"
+BATCHSIZE = 1000
+DEBUGITERATOR = 1000
