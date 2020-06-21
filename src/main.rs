@@ -1,17 +1,29 @@
+use config::*;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::io;
 use std::time::Instant;
+use clap::App;
 
 fn main() -> io::Result<()> {
-    let infile_path = "/Users/jim/Desktop/sample.csv";
-    let outfile_path = "/Users/jim/Desktop/out.csv";
+    let matches = App::new("matching_api_client")  
+                          .args_from_usage(
+                              "-c, --config=[FILE] '!Mandatory! Sets a config file'")
+                          .get_matches();
+    let config = matches.value_of("config").unwrap();
+						  
+    let mut settings = Config::default();
+    settings
+        .merge(File::with_name(config))
+        .unwrap();
 
-    let mut counter: usize = 0;
-    const MPID: u16 = 2120;
-    const URI: &str = "GET FROM CFG";
-    const BATCHSIZE: usize = 1000;
-    const DEBUGITERATOR: usize = 1000;
+    let mpid: u16 = settings.get::<u16>("MPID").unwrap();
+	let uri = settings.get_str("URI").unwrap();
+	let batchsize = settings.get::<usize>("BATCHSIZE").unwrap();
+    // const BATCHSIZE: usize = 2;	
+	
+    let mut debug_counter: usize = 0;
+    let debug_iterator = settings.get::<usize>("DEBUGITERATOR").unwrap();
 
     let now = Instant::now();
 
@@ -22,14 +34,14 @@ fn main() -> io::Result<()> {
     let mut csv_reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .escape(Some(b'\\'))
-        .from_path(infile_path)?;
-    let mut csv_writer = csv::Writer::from_path(outfile_path)?;
+        .from_path(&settings.get_str("infile_path").unwrap())?;
+    let mut csv_writer = csv::Writer::from_path(&settings.get_str("outfile_path").unwrap())?;
 
-    for chunk in csv_reader.records().chunks(BATCHSIZE).into_iter() {
-        if counter > DEBUGITERATOR {
+    for chunk in csv_reader.records().chunks(batchsize).into_iter() {
+        if debug_counter > debug_iterator {
             break;
         }
-        counter += 1;
+        debug_counter += 1;
 
         //TODO: convert building messages vector to function. Need to pass Iter over Chunks of StringRecords to this function. How the fuck do you annotate this
         let mut messages = Vec::new();
@@ -45,7 +57,11 @@ fn main() -> io::Result<()> {
             messages.push(msg);
         }
 
-        messages = resolve_message_kind(messages, MPID, URI);
+        messages = resolve_message_kind(
+            messages,
+            mpid,
+            &uri
+        );
 
         for msg in messages {
             match msg.template_id {
@@ -55,7 +71,7 @@ fn main() -> io::Result<()> {
         }
     }
     stats.show();
-	println!("{}", now.elapsed().as_secs());
+    println!("{}", now.elapsed().as_secs());
     Ok(())
 }
 
@@ -77,7 +93,8 @@ fn resolve_message_kind(mut msgs: Vec<ShortMessage>, mpid: u16, uri: &str) -> Ve
 
     let parsed_res = json::parse(&res.text().unwrap()).unwrap();
     let matches = &parsed_res["result"]["matches"];
-    for (i, single_match) in matches.members().enumerate() { // TODO: use zip instead of enumeration 
+    for (i, single_match) in matches.members().enumerate() {
+        // TODO: use zip instead of enumeration
         msgs[i].kind = match single_match["template_purpose"].as_str() {
             Some("transaction") => SMKind::Transaction,
             Some("service") => SMKind::Service,
