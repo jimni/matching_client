@@ -1,5 +1,6 @@
 infile_path = "sample.csv"
 outfile_path = "out.csv"
+stats_outfile_path = "stats.csv"
 MPID = 2120
 URI = "http://example.com/api"
 BATCHSIZE = 1000

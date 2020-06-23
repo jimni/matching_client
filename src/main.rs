@@ -18,17 +18,18 @@ fn main() -> io::Result<()> {
         .unwrap();
 
     let mpid: u16 = settings.get::<u16>("MPID").unwrap();
-	let uri = settings.get_str("URI").unwrap();
-	let batchsize = settings.get::<usize>("BATCHSIZE").unwrap();
-    // const BATCHSIZE: usize = 2;	
+    let uri = settings.get_str("URI").unwrap();
+    let batchsize = settings.get::<usize>("BATCHSIZE").unwrap();
 	
     let mut debug_counter: usize = 0;
     let debug_iterator = settings.get::<usize>("DEBUGITERATOR").unwrap();
+	let mut unmatched_msgs: usize = 0;
 
     let now = Instant::now();
 
     let mut stats = StatsTable {
         templates: HashMap::new(),
+		total_msgs: 0,
     };
 
     let mut csv_reader = csv::ReaderBuilder::new()
@@ -42,6 +43,7 @@ fn main() -> io::Result<()> {
             break;
         }
         debug_counter += 1;
+		if debug_counter % 10 == 0 { println!("debug cntr = {}. Elapsed time: {}s", &debug_counter, now.elapsed().as_secs()); };
 
         //TODO: convert building messages vector to function. Need to pass Iter over Chunks of StringRecords to this function. How the fuck do you annotate this
         let mut messages = Vec::new();
@@ -50,6 +52,8 @@ fn main() -> io::Result<()> {
             let msg = ShortMessage {
                 sender: record.get(2).unwrap().to_string(), // TODO: make field positions configurable
                 text: record.get(8).unwrap().to_string(),
+				received_at: record.get(1).unwrap().to_string(),
+				to: record.get(3).unwrap().to_string(),
                 kind: SMKind::Advertisement,
                 template_id: None,
                 weight: None,
@@ -66,12 +70,17 @@ fn main() -> io::Result<()> {
         for msg in messages {
             match msg.template_id {
                 Some(t_id) => stats.append(t_id, msg.weight.unwrap()),
-                None => csv_writer.write_record(&[msg.sender, msg.text])?,
+                None => {
+					csv_writer.write_record(&[msg.received_at, msg.to, msg.text])?;
+					unmatched_msgs +=1;
+				},
             }
         }
     }
-    stats.show();
-    println!("{}", now.elapsed().as_secs());
+    // stats.show();
+	stats.to_csv(&settings.get_str("stats_outfile_path").unwrap());
+	println!("Unmatched msgs = {}", unmatched_msgs);
+    println!("Elapsed time: {}s", now.elapsed().as_secs());
     Ok(())
 }
 
@@ -101,7 +110,7 @@ fn resolve_message_kind(mut msgs: Vec<ShortMessage>, mpid: u16, uri: &str) -> Ve
             _ => SMKind::Advertisement,
         };
         msgs[i].template_id = single_match["template_id"].as_usize();
-        msgs[i].weight = single_match["weight"].as_u64();
+        msgs[i].weight = single_match["weight"].as_usize();
     }
 
     return msgs;
@@ -110,10 +119,11 @@ fn resolve_message_kind(mut msgs: Vec<ShortMessage>, mpid: u16, uri: &str) -> Ve
 // TODO: make it thread-safe and switch to async http requests
 struct StatsTable {
     templates: HashMap<usize /* template_id */, TemplateStat>,
+	total_msgs: usize,
 }
 
 impl StatsTable {
-    fn append(&mut self, template_id: usize, weight: u64) {
+    fn append(&mut self, template_id: usize, weight: usize) {
         match self.templates.get_mut(&template_id) {
             Some(v) => {
                 v.msg_count += 1;
@@ -130,26 +140,40 @@ impl StatsTable {
                 ();
             }
         };
+		self.total_msgs += 1;
     }
+	
     fn show(&self) {
         // TODO: convert to display trait or another fmt trait
-        println!("{:?}", self.templates);
+		for (k, v) in &self.templates {
+        	println!("{} -> {:?}", k, v);
+    	}  
+        println!("---\nTotal msgs matched = {}", self.total_msgs);
     }
+	
+	fn to_csv(&self, outpath: &String){
+		let mut stats_writer = csv::Writer::from_path(&outpath).unwrap();
+		for (k, v) in &self.templates {
+			stats_writer.write_record(&[k.to_string(), v.msg_count.to_string(), v.msg_weight.to_string()]).unwrap();
+    	} 
+	}
 }
 
 #[derive(Debug)]
 struct TemplateStat {
-    msg_count: u64,
-    msg_weight: u64,
+    msg_count: usize,
+    msg_weight: usize,
 }
 
 #[derive(Debug)]
 struct ShortMessage {
+	received_at: String,
+	to: String, 
     sender: String,
     text: String,
     kind: SMKind,
     template_id: Option<usize>,
-    weight: Option<u64>,
+    weight: Option<usize>,
 }
 
 #[derive(Debug)]
