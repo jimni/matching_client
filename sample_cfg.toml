@@ -1,7 +1,53 @@
+##############
+# Input file #
+##############
+## comma-separated
+## escape symbol = `\`
+## quote symbol = `"`
+## columns = [1:whatever,2:datatime,3:sender,4:receiver,5-8:whatever,9:text]
+## example:
+## xxx,2020-06-04T11:51:14.832+03:00,somename,70001234567,xxx,xxx,xxx,xxx,"text \"message\""
+
 infile_path = "sample.csv"
+
+#######################################
+# Output file. Unmatched massages #
+#######################################
+## comma-separated (RFC-compliant)
+## escape symbol = `"`
+## quote symbol = `"`
+## columns = [1:datatime, 2:receiver, 3:text]
+## example:
+## 2020-06-04T11:51:14.832+03:00,70001234567,"text ""message"""
 outfile_path = "out.csv"
+
+####################################
+# Output file. Matching statistics #
+####################################
+## comma-separated (RFC-compliant)
+## columns = [1:template_id, 2:messages count, 3:messages weight]
+## example:
+## 123,100,200
 stats_outfile_path = "stats.csv"
+
+#######################
+# Message_provider ID #
+#######################
 MPID = 2120
+
+################
+# API Endpoint #
+################
 URI = "http://example.com/api"
+
+##############################################
+# Number of messages in single batch request #
+##############################################
 BATCHSIZE = 1000
+
+##################################
+# Stop of this number of batches #
+##################################
+## if you don't need to stop, put in large positive integer number
+
 DEBUGITERATOR = 1000

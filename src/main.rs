@@ -1,35 +1,32 @@
+use clap::App;
 use config::*;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::io;
 use std::time::Instant;
-use clap::App;
 
 fn main() -> io::Result<()> {
-    let matches = App::new("matching_api_client")  
-                          .args_from_usage(
-                              "-c, --config=[FILE] '!Mandatory! Sets a config file'")
-                          .get_matches();
-    let config = matches.value_of("config").unwrap();
-						  
+    let args = App::new("matching_api_client")
+        .args_from_usage("-c, --config=[FILE] '!Mandatory! Sets a config file'")
+        .get_matches();
+    let config_file = args.value_of("config").unwrap();
+
     let mut settings = Config::default();
-    settings
-        .merge(File::with_name(config))
-        .unwrap();
+    settings.merge(File::with_name(config_file)).unwrap();
 
     let mpid: u16 = settings.get::<u16>("MPID").unwrap();
     let uri = settings.get_str("URI").unwrap();
     let batchsize = settings.get::<usize>("BATCHSIZE").unwrap();
-	
+
     let mut debug_counter: usize = 0;
-    let debug_iterator = settings.get::<usize>("DEBUGITERATOR").unwrap();
-	let mut unmatched_msgs: usize = 0;
+    let debug_max_iterations = settings.get::<usize>("DEBUGITERATOR").unwrap();
+    let mut unmatched_msgs: usize = 0;
 
     let now = Instant::now();
 
     let mut stats = StatsTable {
         templates: HashMap::new(),
-		total_msgs: 0,
+        total_msgs: 0,
     };
 
     let mut csv_reader = csv::ReaderBuilder::new()
@@ -39,11 +36,17 @@ fn main() -> io::Result<()> {
     let mut csv_writer = csv::Writer::from_path(&settings.get_str("outfile_path").unwrap())?;
 
     for chunk in csv_reader.records().chunks(batchsize).into_iter() {
-        if debug_counter > debug_iterator {
+        if debug_counter > debug_max_iterations {
             break;
         }
         debug_counter += 1;
-		if debug_counter % 10 == 0 { println!("debug cntr = {}. Elapsed time: {}s", &debug_counter, now.elapsed().as_secs()); };
+        if debug_counter % 10 == 0 {
+            println!(
+                "debug cntr = {}. Elapsed time: {}s",
+                &debug_counter,
+                now.elapsed().as_secs()
+            );
+        };
 
         //TODO: convert building messages vector to function. Need to pass Iter over Chunks of StringRecords to this function. How the fuck do you annotate this
         let mut messages = Vec::new();
@@ -52,8 +55,8 @@ fn main() -> io::Result<()> {
             let msg = ShortMessage {
                 sender: record.get(2).unwrap().to_string(), // TODO: make field positions configurable
                 text: record.get(8).unwrap().to_string(),
-				received_at: record.get(1).unwrap().to_string(),
-				to: record.get(3).unwrap().to_string(),
+                received_at: record.get(1).unwrap().to_string(),
+                to: record.get(3).unwrap().to_string(),
                 kind: SMKind::Advertisement,
                 template_id: None,
                 weight: None,
@@ -61,25 +64,21 @@ fn main() -> io::Result<()> {
             messages.push(msg);
         }
 
-        messages = resolve_message_kind(
-            messages,
-            mpid,
-            &uri
-        );
+        messages = resolve_message_kind(messages, mpid, &uri);
 
         for msg in messages {
             match msg.template_id {
                 Some(t_id) => stats.append(t_id, msg.weight.unwrap()),
                 None => {
-					csv_writer.write_record(&[msg.received_at, msg.to, msg.text])?;
-					unmatched_msgs +=1;
-				},
+                    csv_writer.write_record(&[msg.received_at, msg.to, msg.text])?;
+                    unmatched_msgs += 1;
+                }
             }
         }
     }
     // stats.show();
-	stats.to_csv(&settings.get_str("stats_outfile_path").unwrap());
-	println!("Unmatched msgs = {}", unmatched_msgs);
+    stats.to_csv(&settings.get_str("stats_outfile_path").unwrap());
+    println!("Unmatched msgs = {}", unmatched_msgs);
     println!("Elapsed time: {}s", now.elapsed().as_secs());
     Ok(())
 }
@@ -119,7 +118,7 @@ fn resolve_message_kind(mut msgs: Vec<ShortMessage>, mpid: u16, uri: &str) -> Ve
 // TODO: make it thread-safe and switch to async http requests
 struct StatsTable {
     templates: HashMap<usize /* template_id */, TemplateStat>,
-	total_msgs: usize,
+    total_msgs: usize,
 }
 
 impl StatsTable {
@@ -140,23 +139,29 @@ impl StatsTable {
                 ();
             }
         };
-		self.total_msgs += 1;
+        self.total_msgs += 1;
     }
-	
+
     fn show(&self) {
         // TODO: convert to display trait or another fmt trait
-		for (k, v) in &self.templates {
-        	println!("{} -> {:?}", k, v);
-    	}  
+        for (k, v) in &self.templates {
+            println!("{} -> {:?}", k, v);
+        }
         println!("---\nTotal msgs matched = {}", self.total_msgs);
     }
-	
-	fn to_csv(&self, outpath: &String){
-		let mut stats_writer = csv::Writer::from_path(&outpath).unwrap();
-		for (k, v) in &self.templates {
-			stats_writer.write_record(&[k.to_string(), v.msg_count.to_string(), v.msg_weight.to_string()]).unwrap();
-    	} 
-	}
+
+    fn to_csv(&self, outpath: &String) {
+        let mut stats_writer = csv::Writer::from_path(&outpath).unwrap();
+        for (k, v) in &self.templates {
+            stats_writer
+                .write_record(&[
+                    k.to_string(),
+                    v.msg_count.to_string(),
+                    v.msg_weight.to_string(),
+                ])
+                .unwrap();
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -167,8 +172,8 @@ struct TemplateStat {
 
 #[derive(Debug)]
 struct ShortMessage {
-	received_at: String,
-	to: String, 
+    received_at: String,
+    to: String,
     sender: String,
     text: String,
     kind: SMKind,
