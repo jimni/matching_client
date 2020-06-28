@@ -47,8 +47,9 @@ fn main() -> io::Result<()> {
                 now.elapsed().as_secs()
             );
         };
+		
+		// let mut messages = make_messages_vec(&mut chunk); //TODO: make it work
 
-        //TODO: convert building messages vector to function. Need to pass Iter over Chunks of StringRecords to this function. How the fuck do you annotate this
         let mut messages = Vec::new();
         for item in chunk {
             let record = item?;
@@ -81,6 +82,24 @@ fn main() -> io::Result<()> {
     println!("Unmatched msgs = {}", unmatched_msgs);
     println!("Elapsed time: {}s", now.elapsed().as_secs());
     Ok(())
+}
+
+fn make_messages_vec(csv_chunk: &mut dyn Iterator<Item = csv::StringRecord>) -> Vec<ShortMessage> {
+    let mut messages = Vec::new();
+    for item in csv_chunk {
+        let record = item;
+        let msg = ShortMessage {
+            sender: record.get(2).unwrap().to_string(), // TODO: make field positions configurable
+            text: record.get(8).unwrap().to_string(),
+            received_at: record.get(1).unwrap().to_string(),
+            to: record.get(3).unwrap().to_string(),
+            kind: SMKind::Advertisement,
+            template_id: None,
+            weight: None,
+        };
+        messages.push(msg);
+    }
+	return messages;
 }
 
 fn resolve_message_kind(mut msgs: Vec<ShortMessage>, mpid: u16, uri: &str) -> Vec<ShortMessage> {
