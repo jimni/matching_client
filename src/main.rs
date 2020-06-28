@@ -47,8 +47,8 @@ fn main() -> io::Result<()> {
                 now.elapsed().as_secs()
             );
         };
-		
-		// let mut messages = make_messages_vec(&mut chunk); //TODO: make it work
+
+        // let mut messages = make_messages_vec(&mut chunk); //TODO: make it work
 
         let mut messages = Vec::new();
         for item in chunk {
@@ -99,7 +99,7 @@ fn make_messages_vec(csv_chunk: &mut dyn Iterator<Item = csv::StringRecord>) -> 
         };
         messages.push(msg);
     }
-	return messages;
+    return messages;
 }
 
 fn resolve_message_kind(mut msgs: Vec<ShortMessage>, mpid: u16, uri: &str) -> Vec<ShortMessage> {
